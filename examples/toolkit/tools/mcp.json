@@ -1,0 +1,35 @@
+{
+  "mcpServers": {
+    "everything": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-everything"]
+    },
+    "ms365": {
+      "command": "npx",
+      "args": ["-y", "@softeria/ms-365-mcp-server", "--org-mode"]
+    },
+    "slack": {
+      "command": "npx",
+      "args": ["-y", "slack-mcp-server@latest", "--transport", "stdio"],
+      "env": {"SLACK_MCP_XOXP_TOKEN": "${SLACK_MCP_XOXP_TOKEN}"}
+    },
+    "google": {
+      "command": "uvx",
+      "args": ["workspace-mcp", "--tools", "gmail", "drive", "calendar"],
+      "env": {
+        "GOOGLE_OAUTH_CLIENT_ID": "${GOOGLE_OAUTH_CLIENT_ID}",
+        "GOOGLE_OAUTH_CLIENT_SECRET": "${GOOGLE_OAUTH_CLIENT_SECRET}",
+        "WORKSPACE_MCP_PORT": "8765"
+      }
+    },
+    "telegram": {
+      "command": "uv",
+      "args": ["--directory", "${TELEGRAM_MCP_DIR}", "run", "main.py"],
+      "env": {
+        "TELEGRAM_API_ID": "${TELEGRAM_API_ID}",
+        "TELEGRAM_API_HASH": "${TELEGRAM_API_HASH}",
+        "TELEGRAM_SESSION_STRING": "${TELEGRAM_SESSION_STRING}"
+      }
+    }
+  }
+}

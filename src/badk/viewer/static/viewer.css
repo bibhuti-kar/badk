@@ -1,0 +1,21 @@
+body { font: 14px/1.4 system-ui, sans-serif; margin: 1rem 2rem; }
+table { border-collapse: collapse; }
+th, td { border: 1px solid #ccc; padding: 2px 8px; text-align: left; }
+section.agent { border: 1px solid #aaa; margin: 1rem 0; padding: 0 1rem; }
+dt { font-weight: bold; }
+tr.error { background: #fdd; }
+tr.retry, tr.restart { background: #ffd; }
+tr.compress { background: #def; }
+tr.done { background: #dfd; }
+.stand-in { font-size: 0.7em; background: #ffd; border: 1px solid #cc9; padding: 0 6px; }
+.agent-error { color: #a00; font-weight: bold; }
+details.history pre { white-space: pre-wrap; margin: 0; }
+#dag-graph g.node.src-always rect { stroke-dasharray: 4 2; }
+#dag-graph g.node.src-dependency rect { stroke-dasharray: 1 2; }
+#dag-graph .skipped, #dag-graph .state-skipped { opacity: 0.4; }
+#dag-graph g.node.kind-tool rect { stroke-dasharray: 6 2; }
+#dag-graph g.node.kind-agent rect { stroke-width: 2px; }
+#dag-graph g.node.kind-select rect { stroke-width: 3px; }
+#dag-graph g.node.st-error rect { stroke: #c00; }
+.route { color: #666; margin: 0; }
+.route-inherited { border-left: 3px solid #888; padding-left: 0.4em; }

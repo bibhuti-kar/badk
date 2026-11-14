@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>run {{ run.run_id }}</title>
+<link rel="stylesheet" href="/static/viewer.css">
+{% if graph %}<script src="/static/mermaid.min.js" defer></script>{% endif %}<script src="/static/viewer.js" defer></script></head>
+<body>
+<p><a href="/runs">all runs</a></p>
+<header id="run-header">
+<h1>Run <span id="run-id">{{ run.run_id }}</span></h1>
+<dl>
+<dt>status</dt><dd id="run-status">{{ run.status }}</dd>
+<dt>started_at</dt><dd>{{ run.started_at }}</dd>
+<dt>ended_at</dt><dd>{{ run.ended_at or "" }}</dd>
+<dt>totals</dt><dd>{{ run.totals.tokens }} tokens, {{ run.totals.seconds }} s, {{ run.totals.steps }} steps</dd>
+<dt>input.raw</dt><dd><pre>{{ run.input.raw }}</pre></dd>
+<dt>input.slash</dt><dd>{{ run.input.slash or "" }}</dd>
+<dt>pins</dt><dd>{{ run.input.pins | join(", ") }}</dd>
+</dl>
+</header>
+{% if graph %}<pre class="mermaid" id="dag-graph" data-nodes="{{ ids | tojson | forceescape }}" data-parents="{{ parents | tojson | forceescape }}">{{ graph }}</pre>{% else %}<p id="dag-graph" class="no-graph">no graph</p>{% endif %}
+{% for key, a in run.agents.items() %}
+<section class="agent" data-agent-key="{{ key }}">
+<h2>{{ key }}{% if a.metadata.stand_in %} <span class="stand-in">stand-in: {{ a.metadata.stand_in }}</span>{% endif %}</h2>
+{% set r = a.metadata.route %}<p class="route{% if r and r.inherited %} route-inherited{% endif %}" data-route>{% if r %}{{ r.provider }} / {{ r.model }}{% if r.inherited %} (inherited){% endif %}{% else %}—{% endif %}</p>
+{% if a.status == "ERROR" and a.error %}<p class="agent-error">{{ a.error.code }}: {{ a.error.message }}</p>{% endif %}
+<dl>
+{% for f in ("task_id", "agent", "journal_summary", "token_spent_so_far", "time_started", "tries", "status") %}
+<dt>{{ f }}</dt><dd>{{ a[f] if a[f] is not none else "" }}</dd>
+{% endfor %}
+<dt>error</dt><dd>{% if a.error %}{{ a.error.code }}: {{ a.error.message }}{% endif %}</dd>
+<dt>active_chat_history</dt><dd><span class="history-count">{{ a.active_chat_history | length }}</span> messages
+{% if a.active_chat_history %}<details class="history"><summary>show</summary><ol>
+{% for m in a.active_chat_history %}<li class="msg"><b>{{ m.role }}</b><pre>{{ m.content }}</pre></li>
+{% endfor %}</ol></details>{% endif %}</dd>
+<dt>metadata</dt><dd><pre>{{ a.metadata | tojson }}</pre></dd>
+</dl>
+</section>
+{% endfor %}
+<table id="timeline" data-run-id="{{ run.run_id }}">
+<tr><th>seq</th><th>ts</th><th>agent</th><th>type</th><th>tokens_in</th><th>tokens_out</th><th>latency_ms</th>{% if has_tool %}<th>tool</th>{% endif %}</tr>
+{% for t in run.trace %}
+<tr class="{{ t.type }}" data-seq="{{ t.seq }}"><td>{{ t.seq }}</td><td>{{ t.ts }}</td><td>{{ t.agent }}</td>
+<td>{{ t.type }}</td><td>{{ t.tokens_in }}</td><td>{{ t.tokens_out }}</td><td>{{ t.latency_ms }}</td>
+{% if has_tool %}<td class="tool-cell">{% if t.type == "tool" and t.detail.status is defined %}{{ t.detail.name }} {{ t.detail.status }}{% endif %}</td>{% endif %}</tr>
+{% endfor %}
+</table>
+</body></html>

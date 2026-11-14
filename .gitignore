@@ -1,0 +1,46 @@
+# Public repo: only what a badk user needs to clone and run.
+# Everything at the top level is ignored unless listed below.
+/*
+!/.gitignore
+!/.dockerignore
+!/.env.example
+!/.python-version
+!/LICENSE
+!/README.md
+!/pyproject.toml
+!/uv.lock
+!/docker-compose.yml
+!/docker/
+!/start.sh
+!/stop.sh
+!/src/
+!/agents/
+!/tools/
+!/examples/
+!/scripts/
+/scripts/*
+!/scripts/init.sh
+!/scripts/init-README.md
+
+# secrets / local, anywhere below
+.env
+.env.*
+!.env.example
+.envrc
+secrets.env
+
+# python, os
+__pycache__/
+*.pyc
+*.egg-info/
+.DS_Store
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+progress/
+.coverage
+.coverage.*
+.idea/
+.vscode/

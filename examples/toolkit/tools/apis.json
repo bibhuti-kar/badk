@@ -1,0 +1,30 @@
+{
+  "demo": {
+    "base_url": "https://httpbin.org",
+    "headers": {"X-Demo-Token": "${DEMO_TOKEN}"},
+    "methods": ["GET", "POST"]
+  },
+  "slack": {
+    "base_url": "https://slack.com/api",
+    "headers": {"Authorization": "Bearer ${SLACK_BOT_TOKEN}"},
+    "methods": ["GET", "POST"]
+  },
+  "telegram": {
+    "base_url": "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}",
+    "methods": ["GET", "POST"]
+  },
+  "teams_webhook": {
+    "base_url": "${TEAMS_WEBHOOK_URL}",
+    "methods": ["POST"]
+  },
+  "msgraph": {
+    "base_url": "https://graph.microsoft.com/v1.0",
+    "bearer_cmd": ["az", "account", "get-access-token", "--resource-type", "ms-graph", "--query", "accessToken", "-o", "tsv"],
+    "methods": ["GET"]
+  },
+  "google": {
+    "base_url": "https://www.googleapis.com",
+    "bearer_cmd": ["gcloud", "auth", "application-default", "print-access-token"],
+    "methods": ["GET"]
+  }
+}

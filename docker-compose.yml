@@ -1,0 +1,161 @@
+x-app: &app
+  build:
+    context: .
+    dockerfile: docker/Dockerfile.app
+    target: production  # the last stage is `runtime` (cloud service only)
+  environment:  # allowlist (not env_file): app/writer call no model, so no LLM_BASE_URL, LLM_API_KEY, FAKE_SCRIPT, PROVIDER_OVERRIDE
+    APP_PORT:
+    TRACE_ENABLED:
+    LOG_LEVEL:
+    LLM_PROVIDER:
+    LLM_MODEL:
+    CLAUDE_MODEL:
+    PROVIDER_TIMEOUT_SEC:
+    CLOUD_DEPLOY:
+    DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/
+  depends_on:
+    postgres:
+      condition: service_healthy
+    rabbitmq:
+      condition: service_healthy
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  networks:
+    - badk
+
+services:
+  app:
+    <<: *app
+    ports:
+      - "127.0.0.1:${APP_PORT}:${APP_PORT}"
+    volumes:
+      - ./src:/app/src:ro
+    command: ["sh", "-c", "exec uvicorn badk.main:app --host 0.0.0.0 --port ${APP_PORT} --reload"]
+    healthcheck:  # same probe as Dockerfile.app (APP_PORT read from the container env at probe time)
+      test: ["CMD", "python", "-c", "import os,urllib.request; urllib.request.urlopen('http://localhost:'+os.environ['APP_PORT']+'/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  writer:
+    <<: *app
+    command: ["python", "-m", "badk.persistence.writer"]
+    restart: on-failure  # the writer exits 1 whenever its consume loop ends
+    healthcheck:  # D-28: path = badk.heartbeat.HEARTBEAT (compose cannot import it)
+      test: ["CMD", "python", "-c", "import os,sys,time; sys.exit(time.time()-os.stat('/tmp/badk.heartbeat').st_mtime>30)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  runtime:  # cloud profile: the coordinator runs here; the host runs no badk process (D-28)
+    <<: *app
+    # explicit list (no DB creds or unrelated keys: tool children can read /proc/1/environ)
+    environment:
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/
+      - TRACE_ENABLED
+      - LOG_LEVEL
+      - LLM_PROVIDER
+      - LLM_BASE_URL  # passed through unchanged; start.sh refuses a loopback value in cloud mode (RT-6)
+      - LLM_API_KEY
+      - LLM_MODEL
+      - CLAUDE_MODEL
+      - LLM_MAX_TOKENS
+      - PROVIDER_TIMEOUT_SEC
+      - CLOUD_DEPLOY
+      - PROVIDER_OVERRIDE
+      - FAKE_SCRIPT
+      - VIEWER_URL=http://app:${APP_PORT:?set APP_PORT in .env}  # RES-4: the redelivery pre-check reaches the viewer API by service name
+      # Tool secrets (TOOL-5): add one `- NAME` line per key a tool file lists in `env:`.
+      # Compose takes the value from .env; `badk serve` refuses to start if one is missing.
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.app
+      target: runtime
+    profiles: [cloud]
+    command: ["badk", "serve", "--heartbeat"]
+    restart: on-failure
+    # serve's first SIGTERM finishes the current run: max_tries x (time_budget_sec + one model call
+    # overrun) = 2 x (600 + 120) s, plus the ack waits and a commit margin (115 s) = 1555 s; rounded
+    # up. Recompute it when you change max_tries or time_budget_sec in agents/coordinator.md.
+    # Past it: SIGKILL.
+    stop_grace_period: 1560s
+    # read_only is inherited; the coordinator's ./progress log is the only in-tree write (tools
+    # write under /tmp, a tmpfs). Owned by the non-root uid so appuser can create files in it.
+    tmpfs:
+      - /tmp
+      - /app/progress:uid=1001,gid=1001
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # a model endpoint on the host (SCAF-4.8)
+    volumes:
+      - ./agents:/app/agents:ro
+      - ./tools:/app/tools:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      writer:
+        condition: service_healthy
+      app:  # RES-4: the redelivery pre-check needs the viewer API, else every request defers
+        condition: service_healthy
+    healthcheck:  # D-28: same probe as Dockerfile.app runtime stage; file is touched by badk serve
+      test: ["CMD", "python", "-c", "import sys,time,os; sys.exit(time.time()-os.stat('/tmp/badk.heartbeat').st_mtime>30)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:?set POSTGRES_PORT in .env}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - badk
+
+  rabbitmq:
+    image: rabbitmq:4.0-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    volumes:
+      - rmqdata:/var/lib/rabbitmq
+    ports:
+      - "127.0.0.1:${RABBITMQ_PORT:?set RABBITMQ_PORT in .env}:5672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - badk
+
+volumes:
+  pgdata:
+  rmqdata:
+
+networks:
+  badk:
+    driver: bridge
