@@ -21,6 +21,7 @@
 /scripts/*
 !/scripts/init.sh
 !/scripts/init-README.md
+!/scripts/skill_builder.py
 
 # secrets / local, anywhere below
 .env
