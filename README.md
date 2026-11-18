@@ -198,6 +198,15 @@ flow:
 ## Add an agent
 Copy `agents/_template.md` to `agents/sub-<name>.md`. Edit `name`, `use_when` and `workspace`. Add the name to `agents` and `always` in `agents/coordinator.md`. Use `depends_on` to run one agent after another. The coordinator `time_budget_sec` must be larger than the longest `depends_on` chain.
 
+Or write the agent file from a prompt with `scripts/skill_builder.py`. Pick `system1` for a fast decision (no tools, small budget) in one of three formats: `choice` (one option), `bool` (true or false), `order` (every option once, best first). Pick `system2` for a free answer, reasoned with care, with tools. The format becomes the `output_schema`, so badk refuses any other answer.
+```bash
+uv run python scripts/skill_builder.py system1 --name sub-triage --decision choice \
+  --options bug,feature,question --use-when "Sort an issue." --prompt "Classify the issue."
+uv run python scripts/skill_builder.py system2 --name sub-analyst --use-when "Explain a trace." \
+  --prompt-file prompt.md --permissions trace_search
+```
+The file goes to `agents/` (`--out` changes it; `--force` overwrites). Before it writes, badk's loader checks the file with the other agents there and the project `.env`, so a name, `depends_on` or `permissions` that badk would refuse is never written. Then add the name to the coordinator as above.
+
 ## Tools: where they live and how an agent gets them
 
 A tool is a file `tools/<name>.md` in the project root (the parent of the agents folder). A `python` tool also has a file `tools/<name>.py`. The tool types are `bash`, `python` and `http`.
